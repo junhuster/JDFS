@@ -2,8 +2,8 @@
     threadpool: used for socket server
     Copyright (C) 2017  zhang jun
     contact me: zhangjunhust@hust.edu.cn
-    		http://www.cnblogs.com/junhuster/
-    		http://weibo.com/junhuster 
+            http://www.cnblogs.com/junhuster/
+            http://weibo.com/junhuster 
 
     This program is free software; you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
@@ -43,7 +43,6 @@ typedef struct job
 {
     void * (*call_back_func)(void *arg);
     void *arg;
-    int job_kind;
     struct job *next;
 }job;
 
@@ -72,37 +71,16 @@ typedef struct threadpool
 
 }threadpool;
 
-typedef struct callback_arg_query
+typedef struct callback_arg
 {
     int socket_fd;
-    char file_name[100];
-    
-}callback_arg_query;
-
-typedef struct callback_arg_upload
-{
-    int socket_fd;
-    char file_name[100];
-    long range_begin;
-    long range_end;
     unsigned char *server_buffer;
     int server_buffer_size;
+}callback_arg;
 
-
-}callback_arg_upload;
-
-typedef struct callback_arg_download
-{
-    int socket_fd;
-    char file_name[100];
-    long range_begin;
-    long range_end;
-    unsigned char *server_buffer;
-    int server_buffer_size;
-}callback_arg_download;
 
 int threadpool_create(threadpool *pool, int num_of_thread, int max_num_of_jobs_of_one_task_queue);
-int threadpool_add_jobs_to_taskqueue(threadpool *pool, void * (*call_back_func)(void *arg), void *arg, int job_kind);
+int threadpool_add_jobs_to_taskqueue(threadpool *pool, void * (*call_back_func)(void *arg), void *arg);
 int threadpool_fetch_jobs_from_taskqueue(threadpool *pool, job **job_fetched);
 void *thread_func(void *arg);
 int destory_threadpool(threadpool *pool);

@@ -2,8 +2,8 @@
     threadpool: used for socket server
     Copyright (C) 2017  zhang jun
     contact me: zhangjunhust@hust.edu.cn
-    		http://www.cnblogs.com/junhuster/
-    		http://weibo.com/junhuster 
+            http://www.cnblogs.com/junhuster/
+            http://weibo.com/junhuster 
 
     This program is free software; you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
@@ -81,7 +81,7 @@ int threadpool_create(threadpool *pool,int num_of_thread, int max_num_of_jobs_of
 }
 
 
-int threadpool_add_jobs_to_taskqueue(threadpool *pool, void * (*call_back_func)(void *arg), void *arg, int job_kind){
+int threadpool_add_jobs_to_taskqueue(threadpool *pool, void * (*call_back_func)(void *arg), void *arg){
 
     if(pool==NULL || call_back_func==NULL || arg==NULL){
         printf("threadpool_add_jobs_to_taskqueue argument error\n");
@@ -127,7 +127,6 @@ int threadpool_add_jobs_to_taskqueue(threadpool *pool, void * (*call_back_func)(
 
     job_node->call_back_func=call_back_func;
     job_node->arg=arg;
-    job_node->job_kind=job_kind;
     job_node->next=NULL;
 
     if(tq->task_queue_head==NULL){
@@ -242,30 +241,14 @@ void *thread_func(void *arg){
             printf("thread_func,fetch job failed\n");
         }else{
 
-            int job_kind=job_fetched->job_kind;
-            if(job_kind==0){
-
-                callback_arg_query *cb_arg_query=(callback_arg_query *)(job_fetched->arg);
-                job_fetched->call_back_func(job_fetched->arg);
-                free(job_fetched);
-
-            }else if(job_kind==1){
-
-            }else if(job_kind==2){
-
-                callback_arg_download *cb_arg_download=(callback_arg_download *)(job_fetched->arg);
-                cb_arg_download->server_buffer=server_buffer;
-                cb_arg_download->server_buffer_size=server_buffer_size0;
-                job_fetched->call_back_func(job_fetched->arg);
-                free(job_fetched);
-                if(job_fetched->arg){
-                     free(job_fetched->arg);
-                }  
-
-            }else{
-
-            }
-                   
+            callback_arg *cb_arg=(callback_arg *)(job_fetched->arg);
+            cb_arg->server_buffer=server_buffer;
+            cb_arg->server_buffer_size=server_buffer_size0;
+            job_fetched->call_back_func(job_fetched->arg);
+            free(job_fetched);
+            if(job_fetched->arg){
+                free(job_fetched->arg);
+            }                       
         }
     }
 

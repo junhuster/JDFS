@@ -2,8 +2,8 @@
     JDFSServer: http server component of JDFS
     Copyright (C) 2017  zhang jun
     contact me: zhangjunhust@hust.edu.cn
-            http://www.cnblogs.com/junhuster/
-            http://weibo.com/junhuster 
+    		http://www.cnblogs.com/junhuster/
+    		http://weibo.com/junhuster 
 
     This program is free software; you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
@@ -19,23 +19,17 @@
     with this program; if not, write to the Free Software Foundation, Inc.,
     51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
  **/
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
+#include "../header/JDFSServer.h"
+#include "../header/network.h"
 
-#include <sys/socket.h>
-#include <netdb.h>
-#include <arpa/inet.h>
-#include <sys/epoll.h>
-
-#include <unistd.h>
-
-#define upload_one_piece_size   1024*10
-
-typedef struct http_request_buffer
+int main(int argc, char const *argv[])
 {
-    int request_kind;
-    long num1;
-    long num2;
-    char file_name[100];
-}http_request_buffer;
+	char *ip="192.168.137.135";
+	int port=8888;
+	int server_listen_fd=0;
+	threadpool *pool=(threadpool *)malloc(sizeof(threadpool));
+	threadpool_create(pool, 6, 20);
+	Http_server_body(ip,port,&server_listen_fd,pool);
+	destory_threadpool(pool);
+	return 0;
+}

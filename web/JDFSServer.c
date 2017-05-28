@@ -102,6 +102,7 @@ int Http_server_body(char *ip, int port, int *server_listen_fd, threadpool *pool
 			if(*server_listen_fd==event_for_epoll_wait[i].data.fd){
 				int client_socket_fd=accept(*server_listen_fd,(struct sockaddr *)&client_socket,&client_socket_len);
 				if(client_socket_fd==-1){
+					perror("Http_server_body,accept");
 					continue;
 				}
 
@@ -111,74 +112,15 @@ int Http_server_body(char *ip, int port, int *server_listen_fd, threadpool *pool
 				epoll_ctl(epoll_fd,EPOLL_CTL_ADD,client_socket_fd,&event_for_epoll_ctl);
 
 			}else if(event_for_epoll_wait[i].events & EPOLLIN){
+
 				int client_socket_fd=event_for_epoll_wait[i].data.fd;
 				if(client_socket_fd<0){
 					continue;
 				}
 
-				memset(server_buffer,0,sizeof(server_buffer));
-				int ret=recv(client_socket_fd,server_buffer,sizeof(http_request_buffer)+4+upload_one_piece_size,0);
-				if(ret<=0){
-					close(client_socket_fd);
-					continue;
-				}
-
-				http_request_buffer *hrb=(http_request_buffer *)server_buffer;
-				
-				if(hrb->request_kind==0){
-
-					callback_arg_query *cb_arg_query=(callback_arg_query *)malloc(sizeof(callback_arg_query));
-					cb_arg_query->socket_fd=client_socket_fd;
-					strcpy(cb_arg_query->file_name, hrb->file_name);
-					threadpool_add_jobs_to_taskqueue(pool, Http_server_callback_query, (void *)cb_arg_query,0);
-
-				}else if(hrb->request_kind==1){
-					printf("accept %s from client, range(byte): %ld---%ld\n",hrb->file_name,hrb->num1,hrb->num2);
-					FILE *fp=NULL;
-					char *file_name=hrb->file_name;
-					if(hrb->num1==0){
-						fp=fopen(file_name, "w+");
-					}else{
-						fp=fopen(file_name,"r+");
-					}
-
-
-					if(fp==NULL){
-						perror("Http_server_body,fopen");
-						close(client_socket_fd);
-					}else{
-
-						long offset=hrb->num1;
-						fseek(fp, offset, SEEK_SET);
-
-						int ret=fwrite(server_buffer+sizeof(http_request_buffer)+4, hrb->num2-hrb->num1+1, 1, fp);
-						if(ret!=1){
-							close(client_socket_fd);
-						}
-					}
-
-					fclose(fp);
-
-				}else if(hrb->request_kind==2){
-            		long range_begin=hrb->num1;
-            		long range_end=hrb->num2;
-            		#ifdef debug
-            		printf("transfer %s to client, range(byte): %ld -- %ld\n",hrb->file_name,range_begin,range_end);
-            		#endif
-
-            		callback_arg_download *cb_arg_download=(callback_arg_download *)malloc(sizeof(callback_arg_download));
-            		cb_arg_download->socket_fd=client_socket_fd;
-            		cb_arg_download->range_begin=range_begin;
-            		cb_arg_download->range_end=range_end;
-
-            		strcpy(cb_arg_download->file_name, hrb->file_name);
-
-            		threadpool_add_jobs_to_taskqueue(pool, Http_server_callback_download, (void*)cb_arg_download,2);
-
-				}else{
-
-				}
-
+				callback_arg *cb_arg=(callback_arg *)malloc(sizeof(callback_arg));
+				cb_arg->socket_fd=client_socket_fd;
+				threadpool_add_jobs_to_taskqueue(pool, Http_server_callback, (void *)cb_arg);
 				
 				//epoll delete client_fd
 
@@ -196,10 +138,10 @@ void *Http_server_callback_query(void *arg){
 	callback_arg_query *cb_arg_query=(callback_arg_query *)arg;
 	char *filename=cb_arg_query->file_name;
 	int client_socket_fd=cb_arg_query->socket_fd;
-	
+	unsigned char *server_buffer=cb_arg_query->server_buffer;
 	FILE *fp=fopen(filename,"r");
     if(NULL==fp) {
-	    printf("file:%s not exists, please provide the right name\n",filename);
+	    printf("Http_server_callback_query, file:%s not exists, please provide the right name\n",filename);
 	    close(client_socket_fd);
         return (void *)1;
     }
@@ -207,9 +149,10 @@ void *Http_server_callback_query(void *arg){
     fseek(fp, 0, SEEK_END);
     long file_size=ftell(fp);
 
-    http_request_buffer hrb;
-    hrb.num1=file_size;
-    send(client_socket_fd,&hrb,sizeof(http_request_buffer),0);
+    http_request_buffer *hrb=(http_request_buffer *)(server_buffer);
+    hrb->num1=file_size;
+    memcpy(server_buffer+sizeof(http_request_buffer), "JDFS", 4);
+    send(client_socket_fd,server_buffer,sizeof(http_request_buffer)+4,0);
     if(fclose(fp)!=0){
     	perror("Http_server_callback_query, fclose\n");
     	return (void *)2;
@@ -220,6 +163,91 @@ void *Http_server_callback_query(void *arg){
 
 void *Http_server_callback_upload(void *arg){
 
+	callback_arg_upload *cb_arg_upload=(callback_arg_upload *)arg;
+
+	int client_socket_fd=cb_arg_upload->socket_fd;
+	long range_begin=cb_arg_upload->range_begin;
+	long range_end=cb_arg_upload->range_end;
+	unsigned char *server_buffer=cb_arg_upload->server_buffer;
+	printf("accept %s from client, range(byte): %ld---%ld\n",cb_arg_upload->file_name,range_begin,range_end);
+	FILE *fp=NULL;
+	char *file_name=cb_arg_upload->file_name;
+	if(range_begin==0){
+		fp=fopen(file_name, "w+");
+	}else{
+		fp=fopen(file_name,"r+");
+	}
+
+
+	if(fp==NULL){
+		perror("Http_server_callback_upload,fopen");
+		close(client_socket_fd);
+	}else{
+
+		long offset=range_begin;
+	    fseek(fp, offset, SEEK_SET);
+
+	    int recv_size=0;
+	    while(1){
+	    	int ret=recv(client_socket_fd,server_buffer+recv_size,range_end-range_begin+1-recv_size,0);
+	    	if(ret<=0){
+	    		perror("Http_server_callback_upload,recv in while");
+	    		break;
+	    	}
+	    	
+	    	recv_size+=ret;
+	    	if(recv_size==(range_end-range_begin+1)){
+	    		break;
+	    	}
+
+	    }
+
+	    if(recv_size==(range_end-range_begin+1)){
+
+	    	int ret1=fwrite(server_buffer,range_end-range_begin+1, 1, fp);
+	    	memset(server_buffer, 0, sizeof(http_request_buffer)+4);
+	    	http_request_buffer *hrb=(http_request_buffer *)server_buffer;
+	    	if(ret1==1){
+	    		hrb->request_kind=3;
+	    		hrb->num1=range_begin;
+	    		hrb->num2=range_end;
+	    	}else{
+	    		hrb->request_kind=4;
+	    	}
+
+	    	int ret=send(client_socket_fd,server_buffer,sizeof(http_request_buffer)+4,0);
+	    	
+	    	if(ret!=(sizeof(http_request_buffer)+4)){
+
+	    		perror("Http_server_callback_upload, send ack to client");
+
+	    	}else{
+
+
+	    	}
+
+			
+	    }else{
+
+	    	memset(server_buffer, 0, sizeof(http_request_buffer)+4);
+	    	http_request_buffer *hrb=(http_request_buffer *)server_buffer;
+	    	hrb->request_kind=4;
+
+	    	int ret=send(client_socket_fd,server_buffer,sizeof(http_request_buffer)+4,0);
+	    	if(ret!=(sizeof(http_request_buffer)+4)){
+
+	    		perror("Http_server_callback_upload, send ack to client");
+
+	    	}else{
+
+
+	    	}
+
+	    }
+
+	}
+
+	fclose(fp);
 
 }
 
@@ -248,8 +276,8 @@ void *Http_server_callback_download(void *arg){
     memcpy(server_buffer+http_request_buffer_len,"JDFS",4);
 
     fread(server_buffer+http_request_buffer_len+4, range_end-range_begin+1, 1, fp);
-    int send_num=0;
-    int ret=send(client_socket_fd,server_buffer+send_num,http_request_buffer_len+4+range_end-range_begin+1-send_num,0); 
+   
+    int ret=send(client_socket_fd,server_buffer,http_request_buffer_len+4+range_end-range_begin+1,0); 
     if(ret==-1){
         perror("Http_server_body,send");
         close(client_socket_fd);
@@ -260,14 +288,62 @@ void *Http_server_callback_download(void *arg){
     }        		
 }
 
-int main(int argc, char const *argv[])
-{
-	char *ip="192.168.137.132";
-	int port=8888;
-	int server_listen_fd=0;
-	threadpool *pool=(threadpool *)malloc(sizeof(threadpool));
-	threadpool_create(pool, 6, 20);
-	Http_server_body(ip,port,&server_listen_fd,pool);
-	destory_threadpool(pool);
-	return 0;
+void *Http_server_callback(void *arg){
+
+	if(arg==NULL){
+		printf("Http_server_callback,argument error\n");
+		exit(0);
+	}
+
+	callback_arg *cb_arg=(callback_arg *)arg;
+	int client_socket_fd=cb_arg->socket_fd;
+	memset(cb_arg->server_buffer, 0, sizeof(http_request_buffer)+4);
+	int ret=recv(client_socket_fd,cb_arg->server_buffer,sizeof(http_request_buffer)+4,0);
+	if(ret!=(4+sizeof(http_request_buffer))){
+		close(client_socket_fd);
+		return (void *)0;
+	}
+
+	http_request_buffer *hrb=(http_request_buffer *)(cb_arg->server_buffer);
+	if(hrb->request_kind==0){
+
+		callback_arg_query cb_arg_query;
+		cb_arg_query.socket_fd=client_socket_fd;
+		cb_arg_query.server_buffer=cb_arg->server_buffer;
+		cb_arg_query.server_buffer_size=cb_arg->server_buffer_size;
+		strcpy(cb_arg_query.file_name, hrb->file_name);
+
+		Http_server_callback_query((void *)(&cb_arg_query));		
+
+	}else if(hrb->request_kind==1){
+
+		callback_arg_upload cb_arg_upload;
+		cb_arg_upload.socket_fd=client_socket_fd;
+		cb_arg_upload.server_buffer=cb_arg->server_buffer;
+		cb_arg_upload.server_buffer_size=cb_arg->server_buffer_size;
+		cb_arg_upload.range_begin=hrb->num1;
+		cb_arg_upload.range_end=hrb->num2;
+		
+		strcpy(cb_arg_upload.file_name, hrb->file_name);
+
+		Http_server_callback_upload((void *)(&cb_arg_upload));
+
+	}else if(hrb->request_kind==2){
+
+		callback_arg_download cb_arg_download;
+		cb_arg_download.socket_fd=client_socket_fd;
+		cb_arg_download.server_buffer=cb_arg->server_buffer;
+		cb_arg_download.server_buffer_size=cb_arg->server_buffer_size;
+		cb_arg_download.range_begin=hrb->num1;
+		cb_arg_download.range_end=hrb->num2;
+
+		strcpy(cb_arg_download.file_name, hrb->file_name);
+
+		Http_server_callback_download((void *)(&cb_arg_download));
+
+	}else{
+
+	}
+
+
 }

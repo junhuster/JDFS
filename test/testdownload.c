@@ -1,5 +1,5 @@
 /**
-    JDFSServer: http server component of JDFS
+    JDFSFileTrans: http client component of JDFS
     Copyright (C) 2017  zhang jun
     contact me: zhangjunhust@hust.edu.cn
             http://www.cnblogs.com/junhuster/
@@ -19,23 +19,20 @@
     with this program; if not, write to the Free Software Foundation, Inc.,
     51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
  **/
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
+#include "../header/JDFSFileTrans.h"
 
-#include <sys/socket.h>
-#include <netdb.h>
-#include <arpa/inet.h>
-#include <sys/epoll.h>
-
-#include <unistd.h>
-
-#define upload_one_piece_size   1024*10
-
-typedef struct http_request_buffer
+int main(int argc, char const *argv[])
 {
-    int request_kind;
-    long num1;
-    long num2;
-    char file_name[100];
-}http_request_buffer;
+	char *ip="192.168.137.135";
+	char *file_name="APUE-en.pdf";
+	int port=8888;
+	if(argc==1){
+		JDFS_http_download(file_name, ip, port);
+	}else if(argc==2){
+		JDFS_http_download_jbp(file_name);
+	}else{
+		printf("main,error occured\n");
+	}
+    
+	return 0;
+}
