@@ -839,10 +839,14 @@ int JDFS_http_upload(char *file_name, char *server_ip, int server_port){
         int ret1=recv(socket_fd,ack_buffer,sizeof(http_request_buffer)+4,0);
         if(ret1<=0){
             perror("JDFS_http_upload, recv");
+            close(socket_fd);
+            Http_connect_to_server(server_ip, server_port, &socket_fd);
             i-=1;
         }else{
             http_request_buffer *hrb=(http_request_buffer *)ack_buffer;
             if(hrb->request_kind!=3){
+            close(socket_fd);
+            Http_connect_to_server(server_ip, server_port, &socket_fd);
                 i-=1;
             }else{
                 
