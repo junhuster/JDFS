@@ -1,9 +1,9 @@
 /**
-    JDFSServer: http server component of JDFS
+    JDFSFileTrans: http client component of JDFS
     Copyright (C) 2017  zhang jun
     contact me: zhangjunhust@hust.edu.cn
-    		http://www.cnblogs.com/junhuster/
-    		http://weibo.com/junhuster
+            http://www.cnblogs.com/junhuster/
+            http://weibo.com/junhuster
 
     This program is free software; you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
@@ -19,28 +19,12 @@
     with this program; if not, write to the Free Software Foundation, Inc.,
     51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
  **/
-#include "../header/JDFSServer.h"
-#include "../header/network.h"
-int node_num_self;
-int main(int argc, char *argv[])
+#include "../header/JDFSClient.h"
+
+int main(int argc, char const *argv[])
 {
-	if(argc!=2){
-		node_num_self=-1;
-		printf("data node serial unknow\n");
-	}else{
-		char *num_str=argv[1];
-		node_num_self=0;
-		for(int i=0;num_str[i]!='\0';i++){
-			node_num_self=node_num_self*10+(num_str[i]-'0');
-		}
-		printf("data node serial number is %d\n", node_num_self);
-	}
-	char *ip_str="192.168.137.145";
-	int port=8888;
-	int server_listen_fd=0;
-	threadpool *pool=(threadpool *)malloc(sizeof(threadpool));
-	threadpool_create(pool, 6, 20);
-	Http_server_body(ip_str,port,&server_listen_fd,pool);
-	destory_threadpool(pool);
+
+	char *file_name="CRLS-en.pdf";
+  	JDFS_cloud_store_file(file_name,1);
 	return 0;
 }

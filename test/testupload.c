@@ -3,7 +3,7 @@
     Copyright (C) 2017  zhang jun
     contact me: zhangjunhust@hust.edu.cn
             http://www.cnblogs.com/junhuster/
-            http://weibo.com/junhuster 
+            http://weibo.com/junhuster
 
     This program is free software; you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
@@ -23,10 +23,10 @@
 
 int main(int argc, char const *argv[])
 {
-	char *ip="192.168.137.135";
-	int port=8888;	
+	char *ip="192.168.137.138";
+	int port=8888;
     char *file_name="CRLS-en.pdf";
-    JDFS_http_upload(file_name, ip, port);
-	
+    JDFS_http_upload(file_name, ip, port,0);
+
 	return 0;
 }

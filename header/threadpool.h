@@ -3,7 +3,7 @@
     Copyright (C) 2017  zhang jun
     contact me: zhangjunhust@hust.edu.cn
             http://www.cnblogs.com/junhuster/
-            http://weibo.com/junhuster 
+            http://weibo.com/junhuster
 
     This program is free software; you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
@@ -48,11 +48,11 @@ typedef struct job
 
 typedef struct task_queue
 {
-    int is_queue_alive;
+    volatile int is_queue_alive;
     int max_num_of_jobs_of_this_task_queue;
-    int current_num_of_jobs_of_this_task_queue;
-    job *task_queue_head;
-    job *task_queue_tail;
+    volatile int current_num_of_jobs_of_this_task_queue;
+    job * volatile task_queue_head;
+    job * volatile task_queue_tail;
 
     pthread_cond_t task_queue_empty;
     pthread_cond_t task_queue_not_empty;
@@ -64,7 +64,7 @@ typedef struct threadpool
 {
     int thread_num;
     pthread_t *thread_id_array;
-    int is_threadpool_alive;
+    volatile int is_threadpool_alive;
 
     pthread_mutex_t mutex_of_threadpool;
     task_queue tq;
@@ -74,7 +74,10 @@ typedef struct threadpool
 typedef struct callback_arg
 {
     int socket_fd;
+    int epoll_fd;
+	int source;
     unsigned char *server_buffer;
+	unsigned char *tmp_buffer;
     int server_buffer_size;
 }callback_arg;
 

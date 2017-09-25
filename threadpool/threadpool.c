@@ -3,7 +3,7 @@
     Copyright (C) 2017  zhang jun
     contact me: zhangjunhust@hust.edu.cn
             http://www.cnblogs.com/junhuster/
-            http://weibo.com/junhuster 
+            http://weibo.com/junhuster
 
     This program is free software; you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
@@ -23,28 +23,18 @@
 #include "../header/threadpool.h"
 
 int threadpool_create(threadpool *pool,int num_of_thread, int max_num_of_jobs_of_one_task_queue){
-    
+
     if(num_of_thread<1 || max_num_of_jobs_of_one_task_queue <1 ){
         printf("threadpool_create:argument error\n");
         return Arg_Err;
     }
 
-   
+
     pool->thread_num=num_of_thread;
     pool->thread_id_array=(pthread_t *)malloc(sizeof(pthread_t)*num_of_thread);
     if(NULL==pool->thread_id_array){
         printf("threadpool_create,malloc thread_id_array failed\n");
         return Malloc_Err;
-    }
-
-    for(int i=0;i<num_of_thread;i++){
-
-        int ret=pthread_create((pool->thread_id_array)+i, NULL, thread_func, (void *)pool);
-        if(ret!=0){
-            perror("threadpool_create,pthread_create");
-            return Thr_Cre_Err;
-        }
-         
     }
 
     pool->is_threadpool_alive=1;
@@ -77,6 +67,14 @@ int threadpool_create(threadpool *pool,int num_of_thread, int max_num_of_jobs_of
         return Cond_Init_Err;
     }
 
+    for(int i=0;i<num_of_thread;i++){
+
+        int ret=pthread_create((pool->thread_id_array)+i, NULL, thread_func, (void *)pool);
+        if(ret!=0){
+            perror("threadpool_create,pthread_create");
+            return Thr_Cre_Err;
+        }
+    }
     return 0;
 }
 
@@ -104,7 +102,7 @@ int threadpool_add_jobs_to_taskqueue(threadpool *pool, void * (*call_back_func)(
         return Job_add_close_Err;// thread pool or task queue not alive
     }
 
-    
+
     while(tq->current_num_of_jobs_of_this_task_queue==tq->max_num_of_jobs_of_this_task_queue){
         int ret=pthread_cond_wait(&(tq->task_queue_not_full), &(pool->mutex_of_threadpool));
         if(ret!=0){
@@ -139,7 +137,7 @@ int threadpool_add_jobs_to_taskqueue(threadpool *pool, void * (*call_back_func)(
 
     tq->current_num_of_jobs_of_this_task_queue=tq->current_num_of_jobs_of_this_task_queue+1;
     if(tq->current_num_of_jobs_of_this_task_queue==1){
-        int ret=pthread_cond_broadcast(&(tq->task_queue_not_empty));      
+        int ret=pthread_cond_broadcast(&(tq->task_queue_not_empty));
         if(ret!=0){
             perror("threadpool_add_jobs_to_taskqueue,pthread_cond_broadcast failed\n");
             return Cond_Brd_Err;
@@ -155,7 +153,6 @@ int threadpool_add_jobs_to_taskqueue(threadpool *pool, void * (*call_back_func)(
     return 0;
 }
 
-
 int threadpool_fetch_jobs_from_taskqueue(threadpool *pool, job **job_fetched){
 
     if(pool==NULL){
@@ -163,18 +160,18 @@ int threadpool_fetch_jobs_from_taskqueue(threadpool *pool, job **job_fetched){
         return Arg_Err;
     }
 
-    
     int ret=pthread_mutex_lock(&(pool->mutex_of_threadpool));
     if(ret!=0){
         perror("threadpool_fetch_jobs_from_taskqueue,pthread_mutex_lock");
         return Mutex_Lock_Err;
     }
-   
+
     task_queue *tq=&(pool->tq);
     while(tq->current_num_of_jobs_of_this_task_queue==0 && tq->is_queue_alive==1){
         int ret=pthread_cond_wait(&(tq->task_queue_not_empty), &(pool->mutex_of_threadpool));
         if(ret!=0){
             perror("threadpool_fetch_jobs_from_taskqueue,pthread_cond_wait");
+            pthread_mutex_unlock(&(pool->mutex_of_threadpool));
             return Cond_Wait_Err;
         }
     }
@@ -185,17 +182,17 @@ int threadpool_fetch_jobs_from_taskqueue(threadpool *pool, job **job_fetched){
             perror("threadpool_fetch_jobs_from_taskqueue,pthread_mutex_unlock");
             return Mutex_uLock_Err;
         }
-        pthread_exit(NULL);
+        return -1;
     }
 
- 
+
     *job_fetched=tq->task_queue_head;
     tq->current_num_of_jobs_of_this_task_queue=tq->current_num_of_jobs_of_this_task_queue-1;
     if(tq->task_queue_head==tq->task_queue_tail){
         tq->task_queue_head=NULL;
         tq->task_queue_tail=NULL;
     }else{
-        tq->task_queue_head=tq->task_queue_head->next;        
+        tq->task_queue_head=tq->task_queue_head->next;
     }
 
     (*job_fetched)->next=NULL;
@@ -204,6 +201,7 @@ int threadpool_fetch_jobs_from_taskqueue(threadpool *pool, job **job_fetched){
 
         int ret=pthread_cond_broadcast(&(tq->task_queue_empty));
         if(ret!=0){
+            pthread_mutex_unlock(&(pool->mutex_of_threadpool));
             return Cond_Brd_Err;
         }
     }
@@ -211,6 +209,7 @@ int threadpool_fetch_jobs_from_taskqueue(threadpool *pool, job **job_fetched){
     if(tq->current_num_of_jobs_of_this_task_queue==tq->max_num_of_jobs_of_this_task_queue-1){
         int ret=pthread_cond_broadcast(&(tq->task_queue_not_full));
         if(ret!=0){
+            pthread_mutex_unlock(&(pool->mutex_of_threadpool));
             return Cond_Brd_Err;
         }
     }
@@ -232,23 +231,26 @@ void *thread_func(void *arg){
 
     threadpool *pool=(threadpool *)arg;
     job *job_fetched=NULL;
- 
+
     unsigned char server_buffer[server_buffer_size0];
+	unsigned char tmp_buffer[server_buffer_size0];
 
     while(1){
+        job_fetched=NULL;
         int ret=threadpool_fetch_jobs_from_taskqueue(pool, &job_fetched);
         if(ret!=0){
             printf("thread_func,fetch job failed\n");
         }else{
-
+            if(job_fetched==NULL){
+              printf("fetched job got an error\n");
+              continue;
+            }
             callback_arg *cb_arg=(callback_arg *)(job_fetched->arg);
             cb_arg->server_buffer=server_buffer;
             cb_arg->server_buffer_size=server_buffer_size0;
+			cb_arg->tmp_buffer=tmp_buffer;
             job_fetched->call_back_func(job_fetched->arg);
             free(job_fetched);
-            if(job_fetched->arg){
-                free(job_fetched->arg);
-            }                       
         }
     }
 
@@ -275,7 +277,7 @@ int destory_threadpool(threadpool *pool){
         int ret=pthread_cond_wait(&(tq->task_queue_empty), &(pool->mutex_of_threadpool));
         if(ret!=0){
             perror("destory_threadpool, cond wait");
-            return Cond_Wait_Err;            
+            return Cond_Wait_Err;
         }
     }
 
@@ -289,8 +291,8 @@ int destory_threadpool(threadpool *pool){
 
     int ret2=pthread_mutex_unlock(&(pool->mutex_of_threadpool));
     if(ret2!=0){
-        perror("destory_threadpool,mutex unlock");   
-        return Mutex_uLock_Err;  
+        perror("destory_threadpool,mutex unlock");
+        return Mutex_uLock_Err;
     }
 
     for(int i=0;i<pool->thread_num;i++){

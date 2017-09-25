@@ -3,7 +3,7 @@
     Copyright (C) 2017  zhang jun
     contact me: zhangjunhust@hust.edu.cn
     		http://www.cnblogs.com/junhuster/
-    		http://weibo.com/junhuster 
+    		http://weibo.com/junhuster
 
     This program is free software; you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
@@ -28,12 +28,12 @@
 
 typedef struct break_point_of_part
 {
-	
+
 	long start_num_of_piece_of_this_part_file;
 	long end_num_of_piece_of_this_part_file;
 	long size_of_last_incompelet_piece;
 	long alread_download_num_of_piece;
-	
+
 }break_point_of_part;
 
 typedef struct break_point
@@ -49,7 +49,7 @@ typedef struct break_point
 }break_point;
 
 
-int Http_connect_to_server(char *ip, int port, int *socket_fd);
+int Http_connect_to_server( char *ip,  int port, int *socket_fd);
 int Http_query_file_size(char *file_name, int socket_fd, long *file_size);
 
 int Http_create_download_file(char *file_name, FILE **fp_download_file, int part_num);
@@ -72,6 +72,4 @@ int Http_recv_file(int socket_fd, char *file_name, long range_begin, long range_
 int Save_download_part_of_file(FILE *fp, unsigned char *buffer, long buffer_size, long file_offset);
 int JDFS_http_download(char *file_name, char *server_ip, int server_port);
 int JDFS_http_download_jbp(char *file_name);
-int JDFS_http_upload(char *file_name, char *server_ip, int server_port);
-
-
+int JDFS_http_upload(char *file_name, char *server_ip, int server_port, char nodes_8_bits, int total_num_of_blocks);
